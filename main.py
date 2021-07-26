@@ -27,7 +27,10 @@ parser.add_argument("--enemizer_boss-shuffle", choices=["none", "random", "full"
 parser.add_argument("--enemizer_enemy-shuffle", choices=["none", "random", "shuffled"], default="none", required=False)
 parser.add_argument("--enemizer_enemy-damage", choices=["default", "shuffled", "random"], default="default", required=False)
 parser.add_argument("--enemizer_enemy-health", choices=["default", "easy", "hard", "expert"], default="default", required=False)
+parser.add_argument("--heart-speed", dest="heart-speed", type=float, choices=[2, 1, 0.25, 0.5, 0], default=0.5, required=False)
+parser.add_argument("--quickswap", action="store_true", required=False)
 parser.add_argument("--verbose", action="store_true", required=False, help="Enable verbose logging")
+parser.add_argument("--output_args", action="store_true", required=False, help="Output arguments to req_post.json")
 
 args = parser.parse_args()
 verbose_logging = args.__dict__["verbose"]
@@ -36,15 +39,19 @@ verbose_logging = args.__dict__["verbose"]
 def create_nested_args(arg_data):
     nested_args_data = dict()
     for key in arg_data.__dict__:
+        if key in ["verbose", "output_args", "quickswap", "heart-speed"]:
+            continue
         if key.find("_") >= 0:
             sub_args_key = key.split("_")[0]
             sub_args_sub_key = key.replace(sub_args_key + "_", "", 1)
             if sub_args_key not in nested_args_data.keys():
                 nested_args_data[sub_args_key] = dict()
             sub_dict = nested_args_data[sub_args_key]
-            sub_dict[sub_args_sub_key] = arg_data.__dict__[key]
+            val = arg_data.__dict__[key]
+            sub_dict[sub_args_sub_key] = val
         else:
-            nested_args_data[key.replace("-", "_")] = arg_data.__dict__[key]
+            val = arg_data.__dict__[key]
+            nested_args_data[key.replace("-", "_")] = val
         if verbose_logging:
             logger.warning("{} -> {}".format(key, arg_data.__dict__[key]))
     return nested_args_data
@@ -92,10 +99,19 @@ def set_heart_speed(rom_bytes, param):
     return rom_bytes
 
 
+def set_quickswap(rom_bytes, param):
+    if param:
+        rom_bytes[0x18004b] = 1
+    else:
+        rom_bytes[0x18004b] = 0
+    return rom_bytes
+
 def generate_new_rom(posted_args):
-    post_data = json.dumps(posted_args)
-    with open("req_post.json", "w") as p:
-        p.write(post_data)
+    global args
+    post_data = json.dumps(posted_args, sort_keys=True, separators=(",",":"))
+    if args.__dict__["output_args"]:
+        with open("req_post.json", "w") as p:
+            p.write(post_data)
     with requests.Session() as s:
         s.get("https://alttpr.com/en/randomizer")
         r = s.post("https://alttpr.com/api/randomizer", data=nested_args)
@@ -106,13 +122,15 @@ def generate_new_rom(posted_args):
 
 
 def patch_and_randomize_rom(rom_bytes, patch, seed_id=None, spoiler=None):
+    global args
     rom_bytes = prepare_rom(rom_bytes)
     for patch_segment in patch:
         for patch_index in patch_segment.keys():
             for b in patch_segment[patch_index]:
                 rom_bytes[int(patch_index)] = b
                 patch_index = str(int(patch_index) + 1)
-    rom_bytes = set_heart_speed(rom_bytes, 0.5)
+    rom_bytes = set_heart_speed(rom_bytes, args.__dict__["heart-speed"])
+    rom_bytes = set_quickswap(rom_bytes, args.__dict__["quickswap"])
     rom_bytes = update_checksum(rom_bytes)
     with open("randomized.sfc", "wb") as output_file:
         output_file.write(rom_bytes)
