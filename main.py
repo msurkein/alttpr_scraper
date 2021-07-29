@@ -1,41 +1,44 @@
-import bps.apply
-import requests
-import requests.adapters
 import argparse
 import json
 import logging
-import ssl
-import platform
 import os
+import ssl
+
+import bps.apply
+import requests
+import requests.adapters
 
 logger = logging.getLogger('alttpr_randomizer')
 
-parser = argparse.ArgumentParser(description="Generate a randomized LTTP ROM using the LTTP randomizer", add_help=True)
-parser.add_argument("--glitches", choices=["none", "overworld_glitches", "major_glitches", "no_logic"], default="none", required=False)
-parser.add_argument("--item-placement", dest="item-placement", choices=["advanced", "basic"], default="advanced", required=False)
-parser.add_argument("--dungeon-items", dest="dungeon-items", choices=["standard", "full", "mcs", "mc"], default="standard", required=False)
-parser.add_argument("--accessibility", choices=["items", "locations", "none"], default="items", required=False)
-parser.add_argument("--goal", choices=["ganon", "fast_ganon", "dungeons", "pedestal", "triforce-hunt"], default="ganon", required=False)
-parser.add_argument("--crystals_ganon", choices=["0", "1", "2", "3", "4", "5", "6", "7", "random"], default="7", required=False)
-parser.add_argument("--crystals_tower", choices=["0", "1", "2", "3", "4", "5", "6", "7", "random"], default="7", required=False)
-parser.add_argument("--mode", choices=["open", "inverted", "retro"], default="open", required=False)
-parser.add_argument("--entrances", choices=["none", "simple", "restricted", "full", "crossed", "insanity"], default="none", required=False)
-parser.add_argument("--hints", choices=["on", "off"], default="on", required=False)
-parser.add_argument("--weapons", choices=["randomized", "swordless", "vanilla", "assured"], default="randomized", required=False)
-parser.add_argument("--item_pool", choices=["normal", "hard", "expert", "crowd_control"], default="normal", required=False)
-parser.add_argument("--item_functionality", choices=["normal", "hard", "expert"], default="normal", required=False)
-parser.add_argument("--tournament", action="store_true", required=False)
-parser.add_argument("--spoilers", choices=["on", "off"], default="on", required=False)
-parser.add_argument("--lang", choices=["en", "fr", "de", "es"], default="en", required=False)
-parser.add_argument("--enemizer_boss-shuffle", choices=["none", "random", "full"], default="none", required=False)
-parser.add_argument("--enemizer_enemy-shuffle", choices=["none", "random", "shuffled"], default="none", required=False)
-parser.add_argument("--enemizer_enemy-damage", choices=["default", "shuffled", "random"], default="default", required=False)
-parser.add_argument("--enemizer_enemy-health", choices=["default", "easy", "hard", "expert"], default="default", required=False)
-parser.add_argument("--heart-speed", dest="heart-speed", type=float, choices=[2, 1, 0.25, 0.5, 0], default=0.5, required=False)
-parser.add_argument("--quickswap", action="store_true", required=False)
-parser.add_argument("--verbose", action="store_true", required=False, help="Enable verbose logging")
-parser.add_argument("--output_args", action="store_true", required=False, help="Output arguments to req_post.json")
-parser.add_argument("--output_keylog", action="store_true", required=False, help="Outputs keylog for wireshark sniffing")
+parser = argparse.ArgumentParser(description="Generate a randomized LTTP ROM using the LTTP randomizer", add_help=False)
+opts = parser.add_argument_group("Configuration Options")
+opts.add_argument("--glitches", choices=["none", "overworld_glitches", "major_glitches", "no_logic"], default="none", required=False)
+opts.add_argument("--item-placement", dest="item-placement", choices=["advanced", "basic"], default="advanced", required=False)
+opts.add_argument("--dungeon-items", dest="dungeon-items", choices=["standard", "full", "mcs", "mc"], default="standard", required=False)
+opts.add_argument("--accessibility", choices=["items", "locations", "none"], default="items", required=False)
+opts.add_argument("--goal", choices=["ganon", "fast_ganon", "dungeons", "pedestal", "triforce-hunt"], default="ganon", required=False)
+opts.add_argument("--crystals_ganon", choices=["0", "1", "2", "3", "4", "5", "6", "7", "random"], default="7", required=False)
+opts.add_argument("--crystals_tower", choices=["0", "1", "2", "3", "4", "5", "6", "7", "random"], default="7", required=False)
+opts.add_argument("--mode", choices=["open", "inverted", "retro"], default="open", required=False)
+opts.add_argument("--entrances", choices=["none", "simple", "restricted", "full", "crossed", "insanity"], default="none", required=False)
+opts.add_argument("--hints", choices=["on", "off"], default="on", required=False)
+opts.add_argument("--weapons", choices=["randomized", "swordless", "vanilla", "assured"], default="randomized", required=False)
+opts.add_argument("--item_pool", choices=["normal", "hard", "expert", "crowd_control"], default="normal", required=False)
+opts.add_argument("--item_functionality", choices=["normal", "hard", "expert"], default="normal", required=False)
+opts.add_argument("--tournament", action="store_true", required=False)
+opts.add_argument("--spoilers", choices=["on", "off"], default="on", required=False)
+opts.add_argument("--lang", choices=["en", "fr", "de", "es"], default="en", required=False)
+opts.add_argument("--enemizer_boss-shuffle", choices=["none", "random", "full"], default="none", required=False)
+opts.add_argument("--enemizer_enemy-shuffle", choices=["none", "random", "shuffled"], default="none", required=False)
+opts.add_argument("--enemizer_enemy-damage", choices=["default", "shuffled", "random"], default="default", required=False)
+opts.add_argument("--enemizer_enemy-health", choices=["default", "easy", "hard", "expert"], default="default", required=False)
+opts.add_argument("--heart-speed", dest="heart-speed", type=float, choices=[2, 1, 0.25, 0.5, 0], default=0.5, required=False)
+opts.add_argument("--quickswap", action="store_true", required=False)
+debug = parser.add_argument_group("Debug Options")
+debug.add_argument("-v", "--verbose", action="store_true", required=False, help="Enable verbose logging")
+debug.add_argument("--output_args", action="store_true", required=False, help="Output arguments to req_post.json")
+debug.add_argument("--output_keylog", action="store_true", required=False, help="Outputs keylog for wireshark sniffing")
+debug.add_argument("-h", "--help", action="help", help="Display this help text then exit")
 
 args = parser.parse_args()
 verbose_logging = args.__dict__["verbose"]
@@ -45,12 +48,8 @@ class SSLContextAdapter(requests.adapters.HTTPAdapter):
     def init_poolmanager(self, *args, **kwargs):
         context = ssl.create_default_context()
         if output_keylog:
-            if platform.system() == 'Linux':
-                prefix = '/mnt/c'
-            else:
-                prefix = 'C:'
-            os.environ["SSLKEYLOGFILE"] = "{}/dev/python/alttpr_scraper/keys.txt".format(prefix)
-            context.keylog_filename = "{}/dev/python/alttpr_scraper/keys.txt".format(prefix)
+            os.environ["SSLKEYLOGFILE"] = "{}/keys.txt".format(os.getcwd())
+            context.keylog_filename = "{}/keys.txt".format(os.getcwd())
         kwargs['ssl_context'] = context
         return super(SSLContextAdapter, self).init_poolmanager(*args, **kwargs)
 
@@ -161,11 +160,13 @@ def patch_and_randomize_rom(rom_bytes, patch, seed_id=None, spoiler=None):
     rom_bytes = set_heart_speed(rom_bytes, args.__dict__["heart-speed"])
     rom_bytes = set_quickswap(rom_bytes, args.__dict__["quickswap"])
     rom_bytes = update_checksum(rom_bytes)
-    with open("randomized.sfc", "wb") as output_file:
+    filename = "alttpr - {}-{}-{}_{}".format(spoiler["meta"]["logic"], spoiler["meta"]["mode"], spoiler["meta"]["goal"], seed_id)
+    with open("{}.sfc".format(filename), "wb") as output_file:
         output_file.write(rom_bytes)
     if spoiler is not None:
-        with open("random_hint.txt", "w") as output_hint:
+        with open("hint_{}.txt".format(filename), "w") as output_hint:
             hints = spoiler
+            output_hint.write("hint_group, hint_subgroup, hint_value\n")
             for key in hints.keys():
                 location_hint = hints[key]
                 if isinstance(location_hint, dict):
