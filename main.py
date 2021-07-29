@@ -1,8 +1,12 @@
 import bps.apply
 import requests
+import requests.adapters
 import argparse
 import json
 import logging
+import ssl
+import platform
+import os
 
 logger = logging.getLogger('alttpr_randomizer')
 
@@ -31,15 +35,30 @@ parser.add_argument("--heart-speed", dest="heart-speed", type=float, choices=[2,
 parser.add_argument("--quickswap", action="store_true", required=False)
 parser.add_argument("--verbose", action="store_true", required=False, help="Enable verbose logging")
 parser.add_argument("--output_args", action="store_true", required=False, help="Output arguments to req_post.json")
+parser.add_argument("--output_keylog", action="store_true", required=False, help="Outputs keylog for wireshark sniffing")
 
 args = parser.parse_args()
 verbose_logging = args.__dict__["verbose"]
+output_keylog = args.__dict__["output_keylog"]
+
+class SSLContextAdapter(requests.adapters.HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        context = ssl.create_default_context()
+        if output_keylog:
+            if platform.system() == 'Linux':
+                prefix = '/mnt/c'
+            else:
+                prefix = 'C:'
+            os.environ["SSLKEYLOGFILE"] = "{}/dev/python/alttpr_scraper/keys.txt".format(prefix)
+            context.keylog_filename = "{}/dev/python/alttpr_scraper/keys.txt".format(prefix)
+        kwargs['ssl_context'] = context
+        return super(SSLContextAdapter, self).init_poolmanager(*args, **kwargs)
 
 
 def create_nested_args(arg_data):
     nested_args_data = dict()
     for key in arg_data.__dict__:
-        if key in ["verbose", "output_args", "quickswap", "heart-speed"]:
+        if key in ["verbose", "output_args", "quickswap", "heart-speed", "output_keylog"]:
             continue
         if key.find("_") >= 0:
             sub_args_key = key.split("_")[0]
@@ -54,6 +73,7 @@ def create_nested_args(arg_data):
             nested_args_data[key.replace("-", "_")] = val
         if verbose_logging:
             logger.warning("{} -> {}".format(key, arg_data.__dict__[key]))
+            logging.basicConfig(level=logging.DEBUG)
     return nested_args_data
 
 
@@ -106,15 +126,24 @@ def set_quickswap(rom_bytes, param):
         rom_bytes[0x18004b] = 0
     return rom_bytes
 
+
 def generate_new_rom(posted_args):
     global args
-    post_data = json.dumps(posted_args, sort_keys=True, separators=(",",":"))
+    post_data = json.dumps(posted_args, separators=(",", ":"))
     if args.__dict__["output_args"]:
         with open("req_post.json", "w") as p:
             p.write(post_data)
+
     with requests.Session() as s:
+        s.mount("https://alttpr.com", SSLContextAdapter())
         s.get("https://alttpr.com/en/randomizer")
-        r = s.post("https://alttpr.com/api/randomizer", data=nested_args)
+        headers = {
+            "Content-Type": "application/json;charset=utf-8",
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0"
+        }
+        r = s.post("https://alttpr.com/api/randomizer", data=post_data, headers=headers)
         result = r.json()
         with open("Zelda no Densetsu - Kamigami no Triforce (Japan).sfc", "rb") as rom_file:
             rom_bytes = rom_file.read()
