@@ -44,14 +44,15 @@ args = parser.parse_args()
 verbose_logging = args.__dict__["verbose"]
 output_keylog = args.__dict__["output_keylog"]
 
+
 class SSLContextAdapter(requests.adapters.HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
+    def init_poolmanager(self, *argss, **kwargs):
         context = ssl.create_default_context()
         if output_keylog:
             os.environ["SSLKEYLOGFILE"] = "{}/keys.txt".format(os.getcwd())
             context.keylog_filename = "{}/keys.txt".format(os.getcwd())
         kwargs['ssl_context'] = context
-        return super(SSLContextAdapter, self).init_poolmanager(*args, **kwargs)
+        return super(SSLContextAdapter, self).init_poolmanager(*argss, **kwargs)
 
 
 def create_nested_args(arg_data):

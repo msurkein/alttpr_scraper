@@ -8,3 +8,7 @@
 /httpRequests/
 # Zeppelin ignored files
 /ZeppelinRemoteNotebooks/
+.idea
+*.sfc
+hint_alttpr*
+keys.txt
