@@ -8,7 +8,9 @@ import bps.apply
 import requests
 import requests.adapters
 
-logger = logging.getLogger('alttpr_randomizer')
+logging.basicConfig(level="INFO", format="%(message)s")
+logger = logging.getLogger("main.py")
+logger.setLevel("INFO")
 
 parser = argparse.ArgumentParser(description="Generate a randomized LTTP ROM using the LTTP randomizer", add_help=False)
 opts = parser.add_argument_group("Configuration Options")
@@ -35,14 +37,19 @@ opts.add_argument("--enemizer_enemy-health", choices=["default", "easy", "hard",
 opts.add_argument("--heart-speed", dest="heart-speed", type=float, choices=[2, 1, 0.25, 0.5, 0], default=0.5, required=False)
 opts.add_argument("--quickswap", action="store_true", required=False)
 debug = parser.add_argument_group("Debug Options")
-debug.add_argument("-v", "--verbose", action="store_true", required=False, help="Enable verbose logging")
 debug.add_argument("--output_args", action="store_true", required=False, help="Output arguments to req_post.json")
 debug.add_argument("--output_keylog", action="store_true", required=False, help="Outputs keylog for wireshark sniffing")
 debug.add_argument("-h", "--help", action="help", help="Display this help text then exit")
+log_settings = debug.add_mutually_exclusive_group()
+log_settings.add_argument("-v", "--verbose", action="store_true", required=False, help="Enable verbose logging")
+log_settings.add_argument("-q", "--quiet", action="store_true", required=False, help="Suppress all logging")
 
 args = parser.parse_args()
 verbose_logging = args.__dict__["verbose"]
 output_keylog = args.__dict__["output_keylog"]
+quiet_logging = args.__dict__["quiet"]
+if quiet_logging:
+    logger.setLevel("ERROR")
 
 
 class SSLContextAdapter(requests.adapters.HTTPAdapter):
@@ -192,7 +199,7 @@ def patch_and_randomize_rom(rom_bytes, patch, seed_id=None, spoiler=None):
                             output_hint.write("{},{},{}\n".format(key, location_key, item[location_key]))
 
             output_hint.write("raw,{}".format(str(spoiler)))
-    print("https://alttpr.com/en/h/{}".format(seed_id))
+    logger.info("https://alttpr.com/en/h/{}".format(seed_id))
 
 
 generate_new_rom(nested_args)
