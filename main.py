@@ -80,11 +80,24 @@ def create_nested_args(arg_data):
 nested_args = create_nested_args(args)
 
 
+def get_bps():
+    resp = requests.get("https://alttpr.com/base_rom/settings")
+    bps_info = resp.json()
+    url = "https://alttpr.com{}".format(bps_info["base_file"])
+    fname = "{}.bps".format(bps_info["rom_hash"])
+    if not os.path.exists(fname):
+        with open(fname, "wb") as bps_output:
+            data = requests.get(url)
+            bps_output.write(data.content)
+    return fname
+
+
 def prepare_rom(rom_bytes):
     target_buf = bytearray()
     while len(target_buf) < 2097152:
         target_buf.append(0)
-    with open("ecca7473031de4b4e1d9994874a3e80c.bps", "rb") as bps_file:
+    patch_filename = get_bps()
+    with open(patch_filename, "rb") as bps_file:
         ops = bps.apply.read_bps(bps_file)
         bps.apply.apply_to_bytearrays(ops, rom_bytes, target_buf)
 
