@@ -44,10 +44,11 @@ Configuration Options:
   --quickswap
 
 Debug Options:
-  -v, --verbose         Enable verbose logging
   --output_args         Output arguments to req_post.json
   --output_keylog       Outputs keylog for wireshark sniffing
   -h, --help            Display this help text then exit
+  -v, --verbose         Enable verbose logging
+  -q, --quiet           Suppress all logging
   ```
 ### Sample Usage
 `python3 main.py --item_functionality expert --weapons swordless --quickswap --enemizer_enemy-health expert`
