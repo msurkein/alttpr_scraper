@@ -7,6 +7,7 @@ import ssl
 import bps.apply
 import requests
 import requests.adapters
+import tempfile
 
 logging.basicConfig(level="INFO", format="%(message)s")
 logger = logging.getLogger("main.py")
@@ -91,7 +92,7 @@ def get_bps():
     resp = requests.get("https://alttpr.com/base_rom/settings")
     bps_info = resp.json()
     url = "https://alttpr.com{}".format(bps_info["base_file"])
-    fname = "{}.bps".format(bps_info["rom_hash"])
+    fname = "{}/{}.bps".format(tempfile.gettempdir(), bps_info["rom_hash"])
     if not os.path.exists(fname):
         with open(fname, "wb") as bps_output:
             data = requests.get(url)
