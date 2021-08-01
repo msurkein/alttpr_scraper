@@ -37,6 +37,8 @@ opts.add_argument("--enemizer_enemy-damage", choices=["default", "shuffled", "ra
 opts.add_argument("--enemizer_enemy-health", choices=["default", "easy", "hard", "expert"], default="default", required=False)
 opts.add_argument("--heart-speed", dest="heart-speed", type=float, choices=[2, 1, 0.25, 0.5, 0], default=0.5, required=False)
 opts.add_argument("--quickswap", action="store_true", required=False)
+opts.add_argument("--input", default="Zelda no Densetsu - Kamigami no Triforce (Japan).sfc", required=False, help="The filename of the base ROM")
+opts.add_argument("--output", default=None, required=False, help="The filename of the output ROM.  If not specified, defaults to the same convention as the ALTTPR website.")
 debug = parser.add_argument_group("Debug Options")
 debug.add_argument("--output_args", action="store_true", required=False, help="Output arguments to req_post.json")
 debug.add_argument("--output_keylog", action="store_true", required=False, help="Outputs keylog for wireshark sniffing")
@@ -54,6 +56,10 @@ if quiet_logging:
 
 
 class SSLContextAdapter(requests.adapters.HTTPAdapter):
+    """
+        A custom SSLContextAdapter is used in order to enable wireshark sniffing (only if requested).  If no flag is present, this
+        behaves exactly the same as a regular SSLContextAdapter
+    """
     def init_poolmanager(self, *argss, **kwargs):
         context = ssl.create_default_context()
         if output_keylog:
@@ -63,10 +69,21 @@ class SSLContextAdapter(requests.adapters.HTTPAdapter):
         return super(SSLContextAdapter, self).init_poolmanager(*argss, **kwargs)
 
 
+
 def create_nested_args(arg_data):
+    """Takes the program arguments and mutates them to the format the alttpr JSON POST request expects
+    This mostly means that nested dictionaries need to be created for the options which are represented
+    as such in the POST.
+
+    The presence of an underscore in the argument flag is used to denote a sub-dictionary.  Only one level
+    of nesting is suported.
+
+    The debug options are not added to this dictionary in order to avoid leaking additional (unecessary) parameters.
+    The secondary options (heart speed, quickswap, etc) are also not added, as they are not patched in by the POST request.
+    """
     nested_args_data = dict()
     for key in arg_data.__dict__:
-        if key in ["verbose", "output_args", "quickswap", "heart-speed", "output_keylog"]:
+        if key in ["verbose", "output_args", "quickswap", "heart-speed", "output_keylog", "quiet", "v", "q", "input", "output'"]:
             continue
         if key.find("_") >= 0:
             sub_args_key = key.split("_")[0]
@@ -92,7 +109,7 @@ def get_bps():
     resp = requests.get("https://alttpr.com/base_rom/settings")
     bps_info = resp.json()
     url = "https://alttpr.com{}".format(bps_info["base_file"])
-    fname = "{}/{}.bps".format(tempfile.gettempdir(), bps_info["rom_hash"])
+    fname = "{}{}{}.bps".format(tempfile.gettempdir(), os.sep, bps_info["rom_hash"])
     if not os.path.exists(fname):
         with open(fname, "wb") as bps_output:
             data = requests.get(url)
@@ -101,6 +118,11 @@ def get_bps():
 
 
 def prepare_rom(rom_bytes):
+    """
+    Expands the rom size to 2097152 bytes and applies the previously fetched bps patch
+
+    :return: an array of bytes which represent a fully patched and expanded, but not randomized ROM
+    """
     target_buf = bytearray()
     while len(target_buf) < 2097152:
         target_buf.append(0)
@@ -113,6 +135,11 @@ def prepare_rom(rom_bytes):
 
 
 def update_checksum(rom_bytes):
+    """
+    Calculates and inserts the checksum into the expected bytes
+    :param rom_bytes: Any LTTP ROM (randomized or not)
+    :return: The same ROM with the checksum bytes updated correctly
+    """
     bytesum = 0
     for i in range(0, len(rom_bytes)):
         if i < 0x7fdc or i > 0x7fdf:
@@ -164,7 +191,7 @@ def generate_new_rom(posted_args):
         }
         r = s.post("https://alttpr.com/api/randomizer", data=post_data, headers=headers)
         result = r.json()
-        with open("Zelda no Densetsu - Kamigami no Triforce (Japan).sfc", "rb") as rom_file:
+        with open(args.__dict__["input"], "rb") as rom_file:
             rom_bytes = rom_file.read()
         patch_and_randomize_rom(rom_bytes, result["patch"], result["hash"], result["spoiler"])
 
@@ -180,8 +207,13 @@ def patch_and_randomize_rom(rom_bytes, patch, seed_id=None, spoiler=None):
     rom_bytes = set_heart_speed(rom_bytes, args.__dict__["heart-speed"])
     rom_bytes = set_quickswap(rom_bytes, args.__dict__["quickswap"])
     rom_bytes = update_checksum(rom_bytes)
-    filename = "alttpr - {}-{}-{}_{}".format(spoiler["meta"]["logic"], spoiler["meta"]["mode"], spoiler["meta"]["goal"], seed_id)
-    with open("{}.sfc".format(filename), "wb") as output_file:
+    if args.__dict__["output"] is None:
+        filename = "alttpr - {}-{}-{}_{}.sfc".format(spoiler["meta"]["logic"], spoiler["meta"]["mode"], spoiler["meta"]["goal"], seed_id)
+    else:
+        filename: str = args.__dict__["output"]
+        if not filename.endswith(".sfc"):
+            filename += ".sfc"
+    with open(filename, "wb") as output_file:
         output_file.write(rom_bytes)
     if spoiler is not None:
         with open("hint_{}.txt".format(filename), "w") as output_hint:
