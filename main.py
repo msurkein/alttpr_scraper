@@ -229,7 +229,7 @@ def patch_and_randomize_rom(rom_bytes, patch, seed_id=None, spoiler=None):
                         for location_key in item.keys():
                             output_hint.write("{},{},{}\n".format(key, location_key, item[location_key]))
 
-            output_hint.write("raw,{}".format(str(spoiler)))
+            output_hint.write("spoiler,raw,{}".format(str(spoiler)))
     logger.info("https://alttpr.com/en/h/{}".format(seed_id))
 
 
